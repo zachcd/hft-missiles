@@ -57,6 +57,8 @@ const globals = {
   playerId: 0,
   frameCount: 0,
   players: [],
+  missiles: [],
+  explosions: [],
   ctx: document.querySelector("#playfield").getContext("2d"),
 };
 
@@ -75,20 +77,55 @@ function pickRandomPosition() {
   };
 }
 
-class Goal {
-  constructor() {
-    this.pickGoal();
-    this.radiusesSquared = globals.itemSize * 2 * globals.itemSize;
+class Missile {
+  constructor(playerI, velocity, start,  timer) {
+    console.log(globals.ctx.canvas.clientWidth)
+    this.playerI = playerI
+    this.position= {}
+    this.position.x = Math.floor(start.x * globals.ctx.canvas.clientWidth)
+    this.position.y = Math.floor(start.y * globals.ctx.canvas.clientHeight)
+    console.log(this.position)
+    this.speedX = Math.floor(velocity.x * globals.ctx.canvas.clientWidth)
+    this.speedY = Math.floor(velocity.y * globals.ctx.canvas.clientHeight)
+    window.setTimeout(() => {this.explode()}, timer)
+  }
+  findGravity() {
+    return {X: 0, Y: -0.08}
+  }
+  moveMissile() {
+    this.speedY = this.speedY + this.findGravity().y
+    this.speedX = this.speedX + this.findGravity().x
+    this.position = {x: this.position.x + this.speedX, y: this.position.y+ this.speedY}
+    console.log(this.position)
+  }
+  explode() {
+    globals.explosions.push(new Explosion( this.playerI, this.position))
+    const ndx = globals.missiles.indexOf(this);
+    if (ndx >= 0) {
+      globals.missiles.splice(ndx, 1);
+    }
   }
 
-  pickGoal() {
-    this.position = pickRandomPosition();
-  }
+}
 
-  isHit(otherPosition) {
-    const dx = otherPosition.x - this.position.x;
-    const dy = otherPosition.y - this.position.y;
-    return dx * dx + dy * dy < this.radiusesSquared;
+class Explosion {
+  constructor(playerI, position) {
+    console.log(position)
+      this.playerI = playerI;
+      this.position = position;
+      this.size = 5;
+      window.setInterval(this.growExplosion, 50)
+      window.setTimeout(this.killExplosion, 1000)
+  }
+  growExplosion() {
+    this.size++;
+  }
+  killExplosion() {
+    const ndx = globals.explosions.indexOf(this);
+    if (ndx >= 0) {
+      globals.explosions.splice(ndx, 1);
+    }
+
   }
 }
 
@@ -97,6 +134,8 @@ class Player {
     this.netPlayer = netPlayer;
     this.name = name;
     this.position = pickRandomPosition();
+    this.ammo = 5
+    this.playerID = randInt(0, 999999)
 
     const hue = randInt(360);
     const sat = randInt(2) * 50 + 50;
@@ -104,7 +143,7 @@ class Player {
     this.color = "hsl(" + hue  + "," + sat + "%," + val + "%)";
 
     netPlayer.addEventListener('disconnect', Player.prototype.disconnect.bind(this));
-    netPlayer.addEventListener('move', Player.prototype.movePlayer.bind(this));
+    netPlayer.addEventListener('shoot', Player.prototype.shoot.bind(this));
     netPlayer.sendCmd('color', this.color);
   }
 
@@ -115,35 +154,32 @@ class Player {
     }
   }
 
-  movePlayer(cmd) {
-    this.position.x = Math.floor(cmd.x * globals.ctx.canvas.clientWidth);
-    this.position.y = Math.floor(cmd.y * globals.ctx.canvas.clientHeight);
-
-    if (globals.goal.isHit(this.position)) {
-      // This will generate a 'scored' event on the client (player's smartphone)
-      // that corresponds to this player.
-      this.netPlayer.sendCmd('scored', {
-        points: randInt(5, 11), // 5 to 10 points
-      });
-      globals.goal.pickGoal();
-    }
+  shoot(cmd) {
+    console.log(cmd)
+    globals.missiles.push(new Missile(globals.players.indexOf(this), cmd.velocity, cmd.start, 3000))
   }
 }
 
 const server = new happyfuntimes.GameServer();
-globals.goal = new Goal();
 
 // A new player has arrived.
 server.on('playerconnect', function(netPlayer) {
   globals.players.push(new Player(netPlayer, "Player" + (++globals.playerId)));
 });
 
-function drawItem(ctx, position, color) {
+function drawExplosion(ctx, position, color, size) {
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(position.x, position.y, globals.itemSize, 0, Math.PI * 2);
+  ctx.arc(position.x, position.y, size, 0, Math.PI * 2);
   ctx.fill();
 };
+function drawMissile(ctx, position, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(position.x, position.y, 15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 
 function resize(canvas) {
   const width = canvas.clientWidth;
@@ -161,16 +197,20 @@ function render() {
 
   resize(ctx.canvas);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.fillStyle="black";
+ctx.fillRect(0,0, ctx.canvas.width, ctx.canvas.height);
 
-  globals.players.forEach(function(player) {
-    drawItem(ctx, player.position, player.color);
+  globals.missiles.forEach(function(missile) {
+    drawMissile(ctx, missile.position, globals.players[missile.playerI]);
   });
 
-  drawItem(ctx, globals.goal.position, (globals.frameCount & 4) ? "red" : "pink");
+  globals.explosions.forEach(function(explosion) {
+    console.log(explosion.position)
+    drawExplosion(ctx, explosion.position, globals.players[explosion.playerI],explosion.size)
+  })
 
   requestAnimationFrame(render);
 };
 requestAnimationFrame(render);
 </script>
 </html>
-

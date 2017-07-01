@@ -40,6 +40,7 @@ client.on('color', handleColor);
 client.on('scored', handleScored);
 
 let points = 0;
+let start = {}
 
 function handleConnect() {
   // nothing to do here though maybe we don't want to
@@ -60,32 +61,38 @@ function handleScored(data) {
 }
 
 const touchArea = document.querySelector('#toucharea');
-touchArea.addEventListener('mousemove', handleMouseMove);
-touchArea.addEventListener('touchmove', handleTouchMove);
-touchArea.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-});
+touchArea.addEventListener('touchstart', handleTouchStart);
+touchArea.addEventListener('touchend', handleTouchEnd);
 
-function handleTouchMove(event) {
-  // only handle the first touch
-  sendMoveCmd(getRelativePosition(event.touches[0], touchArea), touchArea);
+
+function handleTouchStart(event) {
+  start= getRelativePosition(event, touchArea)
+  event.preventDefault();
 }
 
-function handleMouseMove(event) {
-  sendMoveCmd(getRelativePosition(event, touchArea), touchArea);
+function handleTouchEnd(event) {
+  sendShot(getRelativePosition(event, touchArea), touchArea)
+  event.preventDefault();
 }
 
+
+
+function sendShot(position, target) {
+
+  client.sendCmd('shoot', {
+    velocity: {x: (position.x - start.x )/ target.clientWidth, y: (position.y - start.y )/ target.clientWidth},
+    start: {   x: start.x / target.clientWidth,
+        y: start.y / target.clientHeight }
+  });
+}
 // This will generate a 'move' event in the corresponding
 // NetPlayer object in the game.
-function sendMoveCmd(position, target) {
-  // normalize the position from 0 to 1 because
-  // different players smartphones will have different size
-  // screens
-  client.sendCmd('move', {
-    x: position.x / target.clientWidth,
-    y: position.y / target.clientHeight,
-  });
-};
+// function sendMoveCmd(position, target) {
+//   // normalize the position from 0 to 1 because
+//   // different players smartphones will have different size
+//   // screens
+//
+// };
 
 
 function getRelativePosition(event, target) {
@@ -93,12 +100,10 @@ function getRelativePosition(event, target) {
   var rect = target.getBoundingClientRect();
 
   return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
+    x: event.changedTouches[0].clientX - rect.left,
+    y: event.changedTouches[0].clientY - rect.top,
   }
 }
 
 </script>
 </html>
-
-
