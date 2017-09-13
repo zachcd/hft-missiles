@@ -78,28 +78,28 @@ function pickRandomPosition() {
 }
 
 class Missile {
-  constructor(playerI, velocity, start,  timer) {
-    console.log(globals.ctx.canvas.clientWidth)
+  constructor(playerI, velocity, start,  timer, score) {
     this.playerI = playerI
     this.position= {}
+    this.score = () => {score}
     this.position.x = Math.floor(start.x * globals.ctx.canvas.clientWidth)
     this.position.y = Math.floor(start.y * globals.ctx.canvas.clientHeight)
-    console.log(this.position)
-    this.speedX = Math.floor(velocity.x * globals.ctx.canvas.clientWidth)
-    this.speedY = Math.floor(velocity.y * globals.ctx.canvas.clientHeight)
+    this.speedX = Math.floor(velocity.x * globals.ctx.canvas.clientWidth/ 40)
+    this.speedY = Math.floor(velocity.y * globals.ctx.canvas.clientHeight/ 40)
     window.setTimeout(() => {this.explode()}, timer)
+    window.setInterval(() => {this.moveMissile()}, 50)
   }
   findGravity() {
-    return {X: 0, Y: -0.08}
+    return {x: 0, y: -0.08}
   }
   moveMissile() {
     this.speedY = this.speedY + this.findGravity().y
     this.speedX = this.speedX + this.findGravity().x
-    this.position = {x: this.position.x + this.speedX, y: this.position.y+ this.speedY}
-    console.log(this.position)
+    this.position = {x: this.position.x - this.speedX, y: this.position.y- this.speedY}
+
   }
   explode() {
-    globals.explosions.push(new Explosion( this.playerI, this.position))
+    globals.explosions.push(new Explosion( this.playerI, this.position, this.score))
     const ndx = globals.missiles.indexOf(this);
     if (ndx >= 0) {
       globals.missiles.splice(ndx, 1);
@@ -109,22 +109,24 @@ class Missile {
 }
 
 class Explosion {
-  constructor(playerI, position) {
-    console.log(position)
+  constructor(playerI, position, score) {
       this.playerI = playerI;
       this.position = position;
       this.size = 5;
-      window.setInterval(this.growExplosion, 50)
-      window.setTimeout(this.killExplosion, 1000)
+      this.growin = window.setInterval(() => {this.growExplosion()}, 50)
+      this.kill = window.setTimeout(() => {this.killExplosion()}, 1000)
   }
   growExplosion() {
-    this.size++;
+    this.size += 2;
   }
   killExplosion() {
     const ndx = globals.explosions.indexOf(this);
     if (ndx >= 0) {
       globals.explosions.splice(ndx, 1);
     }
+    clearInterval(this.growin)
+  }
+  isInExplosion(x, y) {
 
   }
 }
@@ -136,6 +138,7 @@ class Player {
     this.position = pickRandomPosition();
     this.ammo = 5
     this.playerID = randInt(0, 999999)
+    this.points = 0
 
     const hue = randInt(360);
     const sat = randInt(2) * 50 + 50;
@@ -154,9 +157,12 @@ class Player {
     }
   }
 
+
   shoot(cmd) {
-    console.log(cmd)
-    globals.missiles.push(new Missile(globals.players.indexOf(this), cmd.velocity, cmd.start, 3000))
+    globals.missiles.push(new Missile(globals.players.indexOf(this), cmd.velocity, cmd.start, 3000, () => {score}))
+  }
+  score(points) {
+    this.points += points
   }
 }
 
@@ -176,7 +182,7 @@ function drawExplosion(ctx, position, color, size) {
 function drawMissile(ctx, position, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(position.x, position.y, 15, 0, Math.PI * 2);
+  ctx.fillText("🚀", position.x, position.y)
   ctx.fill();
 }
 
@@ -201,12 +207,12 @@ function render() {
 ctx.fillRect(0,0, ctx.canvas.width, ctx.canvas.height);
 
   globals.missiles.forEach(function(missile) {
-    drawMissile(ctx, missile.position, globals.players[missile.playerI]);
+    drawMissile(ctx, missile.position, globals.players[missile.playerI].color);
   });
 
   globals.explosions.forEach(function(explosion) {
-    console.log(explosion.position)
-    drawExplosion(ctx, explosion.position, globals.players[explosion.playerI],explosion.size)
+
+    drawExplosion(ctx, explosion.position, globals.players[explosion.playerI].color,explosion.size)
   })
 
   requestAnimationFrame(render);
